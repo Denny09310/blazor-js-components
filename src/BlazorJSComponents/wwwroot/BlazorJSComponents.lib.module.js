@@ -18,8 +18,8 @@ async function importJSComponent(src) {
         : null;
 }
 
-export function beforeWebStart(options) {
-    if (!options.jsComponents?.disableGlobalProperties) {
+export function beforeStart(options) {
+    if (!options?.jsComponents?.disableGlobalProperties) {
         // For convenience, allow the JS component type to be accessed globally.
         globalThis.BlazorJSComponents = {
             Component,
@@ -27,7 +27,7 @@ export function beforeWebStart(options) {
     }
 }
 
-export function afterWebStarted(blazor) {
+export function afterStarted(blazor) {
     async function getOrCreateJSComponent(instanceId, src, key) {
         instanceId = instanceId || jsComponentIdsByKey[key];
         const entry = jsComponentsById[instanceId];
@@ -137,10 +137,10 @@ export function afterWebStarted(blazor) {
     globalThis.DotNet.attachReviver(reviveJSComponentArgs);
 
     let isNavigating = false;
-    blazor.addEventListener('enhancednavigationstart', () => {
+    blazor?.addEventListener?.('enhancednavigationstart', () => {
         isNavigating = true;
     });
-    blazor.addEventListener('enhancednavigationend', () => {
+    blazor?.addEventListener?.('enhancednavigationend', () => {
         isNavigating = false;
     });
 
@@ -197,4 +197,12 @@ export function afterWebStarted(blazor) {
             }
         }
     });
+}
+
+export function beforeWebStart(options) {
+    beforeStart(options);
+}
+
+export function afterWebStarted(blazor) {
+    afterStarted(blazor);
 }
