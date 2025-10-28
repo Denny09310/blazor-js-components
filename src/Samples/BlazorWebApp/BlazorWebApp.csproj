@@ -9,11 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NJsonSchema" Version="11.0.2" />
+    <PackageReference Include="NJsonSchema" Version="11.5.1" />
     <ProjectReference Include="..\..\BlazorJSComponents\BlazorJSComponents.csproj" />
     <ProjectReference Include="..\BlazorWebApp.Client\BlazorWebApp.Client.csproj" />
     <ProjectReference Include="..\RazorClassLibary\RazorClassLibrary.csproj" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.10" />
   </ItemGroup>
 
   <Import Project="..\..\BlazorJSComponents\build\BlazorJSComponents.targets" />
