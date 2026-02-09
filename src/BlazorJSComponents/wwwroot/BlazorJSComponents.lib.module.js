@@ -1,94 +1,92 @@
-﻿import { Component } from '/_content/BlazorJSComponents/component.mjs';
+﻿import { Component } from './component.mjs';
 
 let nextJSComponentId = 1;
-const jsComponentsById = {};
-const jsComponentIdsByKey = {};
-const jsComponentTypesBySrc = {};
+
+const componentsById = new Map();
+const componentIdsByKey = new Map();
+const componentTypesBySrc = new Map();
 
 const jsElementReferenceScopeKey = "__jsScope";
 
 async function importJSComponent(src) {
     if (src.startsWith("./")) {
-        src = new URL(src.substring(2), document.baseURI).toString();
+        src = new URL(src.slice(2), document.baseURI).toString();
     }
 
-    const { default: TComponent } = await import(src);
-    return TComponent?.prototype instanceof Component
-        ? TComponent
-        : null;
+    const mod = await import(src);
+    const TComponent = mod?.default;
+
+    return TComponent?.prototype instanceof Component ? TComponent : null;
 }
 
 export function beforeStart(options) {
     if (!options?.jsComponents?.disableGlobalProperties) {
-        // For convenience, allow the JS component type to be accessed globally.
-        globalThis.BlazorJSComponents = {
-            Component,
-        };
+        globalThis.BlazorJSComponents = { Component };
     }
 }
 
 export function afterStarted(blazor) {
+
     async function getOrCreateJSComponent(instanceId, src, key) {
-        instanceId = instanceId || jsComponentIdsByKey[key];
-        const entry = jsComponentsById[instanceId];
-        if (entry) {
-            // The instance exists, so we'll attempt to return it.
-            const { key: oldKey, src: oldSrc } = entry;
+        instanceId ??= componentIdsByKey.get(key);
+
+        const existing = componentsById.get(instanceId);
+        if (existing) {
+            const { key: oldKey, src: oldSrc } = existing;
+
             if (key && oldKey === key && oldSrc === src) {
-                // There's no ambiguity in which instance we're interested in,
-                // so return the existing instance.
-                delete entry.pendingDisposal;
+                existing.pendingDisposal = false;
                 return instanceId;
-            } else {
-                disposeJSComponent(instanceId);
             }
+
+            disposeJSComponent(instanceId);
         }
 
-        let TComponent = jsComponentTypesBySrc[src];
+        let TComponent = componentTypesBySrc.get(src);
+
         if (TComponent === undefined) {
-            // The module has not been imported, so we'll do that now.
             TComponent = await importJSComponent(src);
-            jsComponentTypesBySrc[src] = TComponent;
+            componentTypesBySrc.set(src, TComponent);
         }
 
-        if (TComponent === null) {
-            // Not a JS component module.
+        if (!TComponent) {
             return 0;
         }
 
-        const newInstance = new TComponent();
-        const newInstanceId = nextJSComponentId++;
+        const instance = new TComponent();
+        const newId = nextJSComponentId++;
 
-        if (key !== null && key !== undefined) {
-            jsComponentIdsByKey[key] = newInstanceId;
+        if (key != null) {
+            componentIdsByKey.set(key, newId);
         }
 
-        jsComponentsById[newInstanceId] = {
+        componentsById.set(newId, {
             key,
             src,
             TComponent,
-            instance: newInstance,
-        };
+            instance
+        });
 
-        newInstance.attach?.(blazor);
+        instance.attach?.(blazor);
 
-        return newInstanceId;
+        return newId;
     }
 
     function disposeJSComponent(instanceId) {
-        const entry = jsComponentsById[instanceId];
-        if (!entry) {
-            // Probably already disposed - do nothing.
-            return;
-        }
+        const entry = componentsById.get(instanceId);
+        if (!entry) return;
 
-        entry.instance._dispose();
-        delete jsComponentsById[instanceId];
-        delete jsComponentIdsByKey[entry.key];
+        entry.instance?._dispose?.();
+
+        componentsById.delete(instanceId);
+
+        if (entry.key != null) {
+            componentIdsByKey.delete(entry.key);
+        }
     }
 
     function getJSComponentInstance(instanceId) {
-        const entry = jsComponentsById[instanceId];
+        const entry = componentsById.get(instanceId);
         if (!entry) {
             throw new Error(`Could not find JS component with ID ${instanceId}`);
         }
@@ -96,29 +94,40 @@ export function afterStarted(blazor) {
     }
 
     function setJSComponentParameters(instanceId, args) {
-        const instance = getJSComponentInstance(instanceId);
-        instance.setParameters?.(...(args || []));
+        getJSComponentInstance(instanceId)
+            .setParameters?.(...(args ?? []));
     }
 
     function invokeJSComponentMethod(instanceId, identifier, args) {
         const instance = getJSComponentInstance(instanceId);
-        const method = instance[identifier];
-        if (!method) {
-            throw new Error(`The JS component does not define method with name '${identifier}'`);
+        const method = instance?.[identifier];
+
+        if (typeof method !== "function") {
+            throw new Error(
+                `The JS component does not define method '${identifier}'`
+            );
         }
-        return method.apply(instance, args);
+
+        return method.apply(instance, args ?? []);
     }
 
-    function reviveJSComponentArgs(key, value) {
-        if (value && typeof value === "object" && value.hasOwnProperty(jsElementReferenceScopeKey)) {
+    function reviveJSComponentArgs(_key, value) {
+        if (
+            value &&
+            typeof value === "object" &&
+            jsElementReferenceScopeKey in value
+        ) {
             const collectionId = value[jsElementReferenceScopeKey];
-            const elements = document.querySelectorAll(`[data-ref|="${collectionId}"]`);
+            const elements = document.querySelectorAll(
+                `[data-ref|="${collectionId}"]`
+            );
+
             const result = {};
             for (const element of elements) {
-                const attributeValue = element.getAttribute('data-ref');
-                const startIndex = attributeValue.indexOf('-') + 1;
-                const elementRefId = attributeValue.substring(startIndex);
-                result[elementRefId] = element;
+                const attr = element.getAttribute("data-ref");
+                const idx = attr.indexOf("-") + 1;
+                const refId = attr.substring(idx);
+                result[refId] = element;
             }
 
             return result;
@@ -137,58 +146,62 @@ export function afterStarted(blazor) {
     globalThis.DotNet.attachReviver(reviveJSComponentArgs);
 
     let isNavigating = false;
-    blazor?.addEventListener?.('enhancednavigationstart', () => {
+
+    blazor?.addEventListener?.("enhancednavigationstart", () => {
         isNavigating = true;
     });
-    blazor?.addEventListener?.('enhancednavigationend', () => {
+
+    blazor?.addEventListener?.("enhancednavigationend", () => {
         isNavigating = false;
     });
 
-    customElements.define('bl-script', class extends HTMLElement {
-        static observedAttributes = ['inst'];
+    class BlScriptElement extends HTMLElement {
+        static observedAttributes = ["inst"];
 
-        async attributeChangedCallback(name, oldValue, newValue) {
-            if (name !== 'inst') {
-                return;
-            }
+        async attributeChangedCallback(name, _oldValue, newValue) {
+            if (name !== "inst") return;
 
-            const src = this.getAttribute('src');
-            const key = this.getAttribute('key');
+            const src = this.getAttribute("src");
+            const key = this.getAttribute("key");
 
             if (!src) {
                 throw new Error("Expected the 'src' attribute to be defined.");
             }
 
-            this._instanceId = await getOrCreateJSComponent(this._instanceId, src, key);
+            this._instanceId = await getOrCreateJSComponent(
+                this._instanceId,
+                src,
+                key
+            );
 
-            if (this._instanceId) {
-                let args;
-                const argsElement = document.getElementById(`bl-args-${newValue}`);
-                if (argsElement) {
-                    args = JSON.parse(argsElement.textContent, reviveJSComponentArgs);
-                    argsElement.textContent = ''; // Clean up the DOM a bit.
-                } else {
-                    args = [];
-                }
-                setJSComponentParameters(this._instanceId, args);
-            }
+            if (!this._instanceId) return;
+
+            const argsEl = document.getElementById(`bl-args-${newValue}`);
+
+            const args = argsEl
+                ? JSON.parse(argsEl.textContent, reviveJSComponentArgs)
+                : [];
+
+            if (argsEl) argsEl.textContent = "";
+
+            setJSComponentParameters(this._instanceId, args);
         }
 
         disconnectedCallback() {
-            if (!this._instanceId) {
-                return;
-            }
+            if (!this._instanceId) return;
 
-            const key = this.getAttribute('key');
-            const mayBeInteractive = this.hasAttribute('int');
+            const key = this.getAttribute("key");
+            const mayBeInteractive = this.hasAttribute("int");
 
             if (!isNavigating && key && mayBeInteractive) {
-                const entry = jsComponentsById[this._instanceId];
+                const entry = componentsById.get(this._instanceId);
+                if (!entry) return;
+
                 entry.pendingDisposal = true;
 
                 setTimeout(() => {
-                    const entry = jsComponentsById[this._instanceId];
-                    if (entry?.pendingDisposal) {
+                    const latest = componentsById.get(this._instanceId);
+                    if (latest?.pendingDisposal) {
                         disposeJSComponent(this._instanceId);
                     }
                 }, 3000);
@@ -196,7 +209,9 @@ export function afterStarted(blazor) {
                 disposeJSComponent(this._instanceId);
             }
         }
-    });
+    }
+
+    customElements.define("bl-script", BlScriptElement);
 }
 
 export function beforeWebStart(options) {
