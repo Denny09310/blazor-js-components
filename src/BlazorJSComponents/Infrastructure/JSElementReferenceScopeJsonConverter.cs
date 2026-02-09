@@ -15,7 +15,7 @@ internal sealed class JSElementReferenceScopeJsonConverter : JsonConverter<JSEle
     public override void Write(Utf8JsonWriter writer, JSElementReferenceScope value, JsonSerializerOptions options)
     {
         writer.WriteStartObject();
-        writer.WriteString(s_idProperty, value._id);
+        writer.WriteString(s_idProperty, value.Id);
         writer.WriteEndObject();
     }
 }
