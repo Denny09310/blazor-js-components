@@ -19,27 +19,68 @@ public sealed class ComputeCallerFileNamePrefix : Task
 
     public override bool Execute()
     {
-        Log.LogMessage(MessageImportance.Low, $"Creating path map:");
-
-        var pathMapBuilder = ImmutableArray.CreateBuilder<KeyValuePair<string, string>>();
-
-        foreach (var sourceRoot in SourceRoot)
+        if (SourceRoot.Length == 0)
         {
-            var root = sourceRoot.ItemSpec;
-            var mappedPath = sourceRoot.GetMetadata("MappedPath");
-
-            if (string.IsNullOrEmpty(root) || string.IsNullOrEmpty(mappedPath))
-            {
-                Log.LogMessage(MessageImportance.Low, $"  Skipping source root '{root}' with mapped path '{mappedPath}' because either the key or value was empty.");
-            }
-
-            Log.LogMessage(MessageImportance.Low, $"  Adding source root '{root}' with mapped path '{mappedPath}'.");
-            pathMapBuilder.Add(new(root, mappedPath));
+            Log.LogMessage(MessageImportance.Low, "No SourceRoot items provided.");
         }
 
-        var pathMap = pathMapBuilder.ToImmutable();
-        var resolver = new SourceFileResolver([], null, pathMap);
-        CallerFileNamePrefix = resolver.NormalizePath(ProjectDir, baseFilePath: null);
-        return true;
+        if (string.IsNullOrWhiteSpace(ProjectDir))
+        {
+            Log.LogError("ProjectDir was not provided or is empty.");
+            return false;
+        }
+
+        Log.LogMessage(MessageImportance.Low, "Creating path map:");
+
+        var builder = ImmutableArray.CreateBuilder<KeyValuePair<string, string>>(SourceRoot.Length);
+
+        foreach (var item in SourceRoot)
+        {
+            var root = item.ItemSpec;
+            var mappedPath = item.GetMetadata("MappedPath");
+
+            if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(mappedPath))
+            {
+                Log.LogMessage(
+                    MessageImportance.Low,
+                    "  Skipping source root '{0}' with mapped path '{1}' because either value was empty.",
+                    root,
+                    mappedPath);
+
+                continue;
+            }
+
+            Log.LogMessage(
+                MessageImportance.Low,
+                "  Adding source root '{0}' with mapped path '{1}'.",
+                root,
+                mappedPath);
+
+            builder.Add(new(root, mappedPath));
+        }
+
+        var pathMap = builder.MoveToImmutable();
+
+        try
+        {
+            var resolver = new SourceFileResolver(
+                searchPaths: [],
+                baseDirectory: null,
+                pathMap: pathMap);
+
+            CallerFileNamePrefix = resolver.NormalizePath(ProjectDir, baseFilePath: null);
+
+            Log.LogMessage(
+                MessageImportance.Low,
+                "Computed CallerFileNamePrefix: '{0}'",
+                CallerFileNamePrefix);
+        }
+        catch (System.Exception ex)
+        {
+            Log.LogErrorFromException(ex, showStackTrace: false);
+            return false;
+        }
+
+        return !Log.HasLoggedErrors;
     }
 }

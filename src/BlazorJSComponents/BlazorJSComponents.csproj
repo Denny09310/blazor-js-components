@@ -1,49 +1,58 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
 
-  <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <PackageId>BlazorJSComponents</PackageId>
-    <IsPackable>true</IsPackable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Authors>MackinnonBuck</Authors>
-    <Version>1.0.0</Version>
-    <RepositoryUrl>https://github.com/MackinnonBuck/blazor-js-components.git</RepositoryUrl>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <DebugType>embedded</DebugType>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+		<Nullable>enable</Nullable>
+		<PackageId>BlazorJSComponents</PackageId>
+		<IsPackable>true</IsPackable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Authors>MackinnonBuck</Authors>
+		<Version>1.0.3</Version>
+		<RepositoryUrl>https://github.com/MackinnonBuck/blazor-js-components.git</RepositoryUrl>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<DebugType>embedded</DebugType>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <SupportedPlatform Include="browser" />
-  </ItemGroup>
+	<ItemGroup>
+		<SupportedPlatform Include="browser" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="9.0.10" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
+	<!-- net9 -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+		<PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="9.0.12" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <_BlazorJSComponentsTasksAssemblies Include="..\BlazorJSComponents.Tasks\bin\$(Configuration)\netstandard2.0\*.dll" />
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
-    <None Include="@(_BlazorJSComponentsTasksAssemblies)">
-      <Pack>true</Pack>
-      <PackagePath>tools\netstandard2.0\any</PackagePath>
-      <Visible>false</Visible>
-    </None>
-    <None Include="build\BlazorJSComponents.targets">
-      <Pack>true</Pack>
-      <PackagePath>%(Identity)</PackagePath>
-    </None>
-  </ItemGroup>
+	<!-- net10 -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+		<PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.*" />
+	</ItemGroup>
 
-  <Target Name="_ValidateBlazorJSComponentsTasksAssembliesDiscovered" AfterTargets="AfterBuild">
-    <Error Text="The BlazorJSComponents.Tasks project must be built in the '$(Configuration)' configuration" Condition="'@(_BlazorJSComponentsTasksAssemblies)' == ''" />
-  </Target>
+	<ItemGroup>
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.102">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<_BlazorJSComponentsTasksAssemblies Include="..\BlazorJSComponents.Tasks\bin\$(Configuration)\netstandard2.0\*.dll" />
+		<None Include="..\..\README.md" Pack="true" PackagePath="\" />
+		<None Include="@(_BlazorJSComponentsTasksAssemblies)">
+			<Pack>true</Pack>
+			<PackagePath>tools\netstandard2.0\any</PackagePath>
+			<Visible>false</Visible>
+		</None>
+		<None Include="build\BlazorJSComponents.targets">
+			<Pack>true</Pack>
+			<PackagePath>%(Identity)</PackagePath>
+		</None>
+	</ItemGroup>
+
+	<Target Name="_ValidateBlazorJSComponentsTasksAssembliesDiscovered" AfterTargets="AfterBuild">
+		<Error Text="The BlazorJSComponents.Tasks project must be built in the '$(Configuration)' configuration" Condition="'@(_BlazorJSComponentsTasksAssemblies)' == ''" />
+	</Target>
 
 </Project>
