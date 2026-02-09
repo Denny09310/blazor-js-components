@@ -9,8 +9,8 @@ namespace BlazorJSComponents;
 
 internal sealed class JSComponentManager
 {
-    private readonly ConcurrentDictionary<Type, string> _componentCollocatedJSPathCache = [];
-    private readonly ConcurrentDictionary<Assembly, AssemblyCollocatedJSAttribute?> _assemblyCollocatedJSAttributeCache = [];
+    private readonly ConcurrentDictionary<Type, string> _componentCollocatedJSPathCache = new();
+    private readonly ConcurrentDictionary<Assembly, AssemblyCollocatedJSAttribute?> _assemblyAttrCache = new();
 
     public JsonSerializerOptions JsonSerializerOptions { get; }
 
@@ -26,6 +26,7 @@ internal sealed class JSComponentManager
 
     public string GetCollocatedComponentJSPath(IComponent component)
     {
+        ArgumentNullException.ThrowIfNull(component);
         var type = component.GetType();
         return _componentCollocatedJSPathCache.GetOrAdd(type, ComputeCollocatedComponentJSPath);
     }
@@ -33,36 +34,34 @@ internal sealed class JSComponentManager
     private string ComputeCollocatedComponentJSPath(Type type)
     {
         var assembly = type.Assembly;
-        var assemblyCollocatedJS = _assemblyCollocatedJSAttributeCache.GetOrAdd(
+
+        var assemblyAttr = _assemblyAttrCache.GetOrAdd(
             assembly,
-            static assembly => assembly.GetCustomAttribute<AssemblyCollocatedJSAttribute>())
+            static a => a.GetCustomAttribute<AssemblyCollocatedJSAttribute>())
             ?? throw new InvalidOperationException(
-                $"The assembly for component of type '{type.FullName}' is not annotated with " +
-                $"'{nameof(AssemblyCollocatedJSAttribute)}'. This is required " +
-                $"in order to automatically determine the collocated JS path.");
+                $"Assembly '{assembly.FullName}' must be annotated with '{nameof(AssemblyCollocatedJSAttribute)}' " +
+                $"to enable collocated JS discovery for component '{type.FullName}'.");
 
-        var componentCollocatedJS = type.GetCustomAttribute<DiscoverCollocatedJSAttribute>()
+        var componentAttr = type.GetCustomAttribute<DiscoverCollocatedJSAttribute>()
             ?? throw new InvalidOperationException(
-                $"The component of type '{type.FullName}' must be annotated with " +
-                $"'{nameof(DiscoverCollocatedJSAttribute)}' in order to automatically infer the collocated " +
-                $"JS file path.");
+                $"Component '{type.FullName}' must be annotated with '{nameof(DiscoverCollocatedJSAttribute)}' " +
+                $"to infer its collocated JS file path.");
 
-        var razorFilePath = componentCollocatedJS.RazorFilePath
+        var razorFilePath = componentAttr.RazorFilePath
             ?? throw new InvalidOperationException(
-                $"The '{nameof(DiscoverCollocatedJSAttribute)}' on component type " +
-                $"'{type.FullName}' did not specify a valid razor file path.");
+                $"'{nameof(DiscoverCollocatedJSAttribute)}' on '{type.FullName}' did not provide a valid razor file path.");
 
-        var pathPrefix = assemblyCollocatedJS.CallerFileNamePathPrefix;
-        if (!razorFilePath.StartsWith(pathPrefix))
+        var prefix = assemblyAttr.CallerFileNamePathPrefix;
+
+        if (!razorFilePath.StartsWith(prefix, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
-                $"Expected the razor file path '{razorFilePath}' to start with the computed " +
-                $"assembly file path prefix '{pathPrefix}'.");
+                $"Razor file path '{razorFilePath}' does not start with expected prefix '{prefix}'.");
         }
 
-        var relativeRazorFilePath = razorFilePath[pathPrefix.Length..];
-        var collocatedJSFilePath = $"./{assemblyCollocatedJS.StaticWebAssetBasePath}{relativeRazorFilePath}.js";
-        return collocatedJSFilePath;
+        var relativePath = razorFilePath[prefix.Length..];
+
+        return $"./{assemblyAttr.StaticWebAssetBasePath}{relativePath}.js";
     }
 
     public void ClearCache(Type[]? updatedTypes)
@@ -70,14 +69,13 @@ internal sealed class JSComponentManager
         if (updatedTypes is null)
         {
             _componentCollocatedJSPathCache.Clear();
-            _assemblyCollocatedJSAttributeCache.Clear();
+            _assemblyAttrCache.Clear();
+            return;
         }
-        else
+
+        foreach (var type in updatedTypes)
         {
-            foreach (var type in updatedTypes)
-            {
-                _componentCollocatedJSPathCache.TryRemove(type, out _);
-            }
+            _componentCollocatedJSPathCache.TryRemove(type, out _);
         }
     }
 }

@@ -12,12 +12,20 @@ public sealed class JSComponentOptions
     /// Gets the <see cref="JsonSerializerOptions"/> used to serialize <see cref="JS"/> arguments
     /// during static rendering.
     /// </summary>
-    public JsonSerializerOptions JsonSerializerOptions { get; } = new(JsonSerializerDefaults.Web)
+    public JsonSerializerOptions JsonSerializerOptions { get; } =
+        CreateDefaultOptions();
+
+    private static JsonSerializerOptions CreateDefaultOptions()
     {
-        PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        TypeInfoResolver = JsonSerializer.IsReflectionEnabledByDefault
-            ? new DefaultJsonTypeInfoResolver()
-            : JsonTypeInfoResolver.Combine(),
-    };
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            PropertyNameCaseInsensitive = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            TypeInfoResolver = JsonSerializer.IsReflectionEnabledByDefault
+                ? new DefaultJsonTypeInfoResolver()
+                : JsonTypeInfoResolver.Combine()
+        };
+
+        return options;
+    }
 }
