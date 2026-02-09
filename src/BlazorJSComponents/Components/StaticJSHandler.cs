@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace BlazorJSComponents;
 
-internal class StaticJSHandler(
+internal sealed class StaticJSHandler(
     string src,
     string? key,
     bool mayBecomeInteractive,
@@ -20,13 +20,14 @@ internal class StaticJSHandler(
     {
         var renderId = uniqueIdAllocator.GetNextId();
 
-        if (_args is { Length: > 0 })
+        if (_args?.Length > 0)
         {
-            var argsJson = JsonSerializer.Serialize(_args, jsonSerializerOptions);
+            var json = JsonSerializer.Serialize(_args, jsonSerializerOptions);
+
             builder.OpenElement(0, "script");
             builder.AddAttribute(1, "id", $"bl-args-{renderId}");
             builder.AddAttribute(2, "type", "application/json");
-            builder.AddMarkupContent(3, argsJson);
+            builder.AddMarkupContent(3, json);
             builder.CloseElement();
         }
 
@@ -35,22 +36,32 @@ internal class StaticJSHandler(
         builder.AddAttribute(6, "key", key);
         builder.AddAttribute(7, "int", mayBecomeInteractive);
         builder.AddAttribute(8, "inst", renderId);
-        builder.AddAttribute(9, "style", "display: none; !important");
+        builder.AddAttribute(9, "style", "display:none!important");
         builder.CloseElement();
     }
 
     public Task OnAfterRenderAsync()
         => Task.CompletedTask;
 
-    public ValueTask<TValue> InvokeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] TValue>(string identifier, object?[]? args)
-        => throw CannotInvokeJSDuringStaticRendering();
+    public ValueTask<TValue> InvokeAsync<
+        [DynamicallyAccessedMembers(
+            DynamicallyAccessedMemberTypes.PublicConstructors |
+            DynamicallyAccessedMemberTypes.PublicFields |
+            DynamicallyAccessedMemberTypes.PublicProperties)]
+    TValue>(string identifier, object?[]? args)
+        => throw CannotInvokeDuringStaticRendering();
 
-    public ValueTask<TValue> InvokeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
-        => throw CannotInvokeJSDuringStaticRendering();
-
-    private static InvalidOperationException CannotInvokeJSDuringStaticRendering()
-        => new("JavaScript interop calls cannot be issued during static rendering");
+    public ValueTask<TValue> InvokeAsync<
+        [DynamicallyAccessedMembers(
+            DynamicallyAccessedMemberTypes.PublicConstructors |
+            DynamicallyAccessedMemberTypes.PublicFields |
+            DynamicallyAccessedMemberTypes.PublicProperties)]
+    TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
+        => throw CannotInvokeDuringStaticRendering();
 
     public ValueTask DisposeAsync()
         => ValueTask.CompletedTask;
+
+    private static InvalidOperationException CannotInvokeDuringStaticRendering()
+        => new("JavaScript interop calls cannot be issued during static rendering");
 }

@@ -4,9 +4,11 @@ using Microsoft.JSInterop;
 
 namespace BlazorJSComponents;
 
-internal interface IJSHandler : IHandleAfterRender, IJSObjectReference
+internal interface IJSHandler :
+    IHandleAfterRender,
+    IJSObjectReference
 {
-    void SetArgs(object?[]? args);
-
     void Render(RenderTreeBuilder builder);
+
+    void SetArgs(object?[]? args);
 }
